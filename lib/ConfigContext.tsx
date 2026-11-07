@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import {
   SiteConfig,
   defaultSiteConfig,
@@ -19,50 +19,41 @@ const ConfigContext = createContext<ConfigContextType>({
   config: defaultSiteConfig,
   updateConfig: async () => false,
   resetToDefaults: async () => false,
-  isLoading: true,
+  isLoading: false,
 });
 
 export const useConfig = () => useContext(ConfigContext);
 
 export const ConfigProvider = ({ children }: { children: React.ReactNode }) => {
-  const [config, setConfig] = useState<SiteConfig>(defaultSiteConfig);
-  const [isLoading, setIsLoading] = useState(true);
+  // Start with localStorage immediately — zero flash/delay for the user
+  const [config, setConfig] = useState<SiteConfig>(() => getClientConfig());
+  const [isLoading, setIsLoading] = useState(false);
+  const fetchedRef = useRef(false);
 
-  // Load config on mount
   useEffect(() => {
-    async function loadConfig() {
-      // 1. First fast-load from localStorage
-      const cached = getClientConfig();
-      setConfig(cached);
+    // Only fetch from server once per page load
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
 
-      // 2. Fetch fresh config from server
-      try {
-        const res = await fetch("/api/config", { cache: "no-store" });
-        if (res.ok) {
-          const serverConfig = await res.json();
-          if (serverConfig && serverConfig.person) {
-            setConfig(serverConfig);
-            saveClientConfig(serverConfig);
-          }
+    // Background sync with server config (non-blocking)
+    const controller = new AbortController();
+    fetch("/api/config", { cache: "no-store", signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((serverConfig) => {
+        if (serverConfig?.person) {
+          setConfig(serverConfig);
+          saveClientConfig(serverConfig);
         }
-      } catch (err) {
-        console.warn("Could not fetch server config, using local cache:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
+      })
+      .catch(() => {/* silently ignore — localStorage fallback already shown */});
 
-    loadConfig();
-
-    // Listen to changes triggered from admin or other tabs
-    const handleStorageChange = () => {
-      setConfig(getClientConfig());
-    };
-
+    // Listen to changes triggered from admin panel or other tabs
+    const handleStorageChange = () => setConfig(getClientConfig());
     window.addEventListener("site_config_updated", handleStorageChange);
     window.addEventListener("storage", handleStorageChange);
 
     return () => {
+      controller.abort();
       window.removeEventListener("site_config_updated", handleStorageChange);
       window.removeEventListener("storage", handleStorageChange);
     };
@@ -71,7 +62,6 @@ export const ConfigProvider = ({ children }: { children: React.ReactNode }) => {
   const updateConfig = async (newConfig: SiteConfig): Promise<boolean> => {
     setConfig(newConfig);
     saveClientConfig(newConfig);
-
     try {
       const res = await fetch("/api/config", {
         method: "POST",
@@ -79,23 +69,16 @@ export const ConfigProvider = ({ children }: { children: React.ReactNode }) => {
         body: JSON.stringify(newConfig),
       });
       return res.ok;
-    } catch (err) {
-      console.warn("Failed to persist config to server file:", err);
-      // Still true because localStorage was updated successfully!
-      return true;
+    } catch {
+      return true; // localStorage saved — that's enough
     }
   };
 
-  const resetToDefaults = async (): Promise<boolean> => {
-    return await updateConfig(defaultSiteConfig);
-  };
+  const resetToDefaults = async () => updateConfig(defaultSiteConfig);
 
   return (
-    <ConfigContext.Provider
-      value={{ config, updateConfig, resetToDefaults, isLoading }}
-    >
+    <ConfigContext.Provider value={{ config, updateConfig, resetToDefaults, isLoading }}>
       {children}
     </ConfigContext.Provider>
   );
 };
-

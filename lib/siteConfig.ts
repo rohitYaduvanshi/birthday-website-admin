@@ -76,7 +76,7 @@ export const defaultSiteConfig: SiteConfig = {
     marqueeTitle: "NOW SHOWING",
     marqueeSub: "a Pipi production, live NOV 11th",
     doorsText: "doors open at midnight, IST",
-    showPreviewButton: true,
+    showPreviewButton: false,
   },
   music: {
     songSrc: "/sounds/pipi-song.mp3",
