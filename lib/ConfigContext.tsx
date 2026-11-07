@@ -47,13 +47,28 @@ export const ConfigProvider = ({ children }: { children: React.ReactNode }) => {
       })
       .catch(() => {/* silently ignore — localStorage fallback already shown */});
 
-    // Listen to changes triggered from admin panel or other tabs
+    // Listen to changes from admin panel in SAME tab
     const handleStorageChange = () => setConfig(getClientConfig());
     window.addEventListener("site_config_updated", handleStorageChange);
+
+    // Listen to changes from admin in OTHER tabs via BroadcastChannel (instant cross-tab sync)
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel("birthday_config_sync");
+      channel.onmessage = (e) => {
+        if (e.data?.type === "config_updated" && e.data?.config) {
+          setConfig(e.data.config);
+          saveClientConfig(e.data.config);
+        }
+      };
+    } catch { /* BroadcastChannel not supported — fallback to storage event */ }
+
+    // Fallback: storage event (fires in OTHER tabs when localStorage changes)
     window.addEventListener("storage", handleStorageChange);
 
     return () => {
       controller.abort();
+      channel?.close();
       window.removeEventListener("site_config_updated", handleStorageChange);
       window.removeEventListener("storage", handleStorageChange);
     };

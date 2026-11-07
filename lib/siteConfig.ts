@@ -76,7 +76,7 @@ export const defaultSiteConfig: SiteConfig = {
     marqueeTitle: "NOW SHOWING",
     marqueeSub: "a Pipi production, live NOV 11th",
     doorsText: "doors open at midnight, IST",
-    showPreviewButton: false,
+    showPreviewButton: true,  // Set false before sharing with birthday person
   },
   music: {
     songSrc: "/sounds/pipi-song.mp3",
@@ -193,11 +193,23 @@ export function getClientConfig(): SiteConfig {
   return defaultSiteConfig;
 }
 
+let _channel: BroadcastChannel | null = null;
+function getChannel(): BroadcastChannel | null {
+  if (typeof window === "undefined") return null;
+  if (!_channel) {
+    try { _channel = new BroadcastChannel("birthday_config_sync"); } catch { _channel = null; }
+  }
+  return _channel;
+}
+
 export function saveClientConfig(config: SiteConfig): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
+    // Notify same tab
     window.dispatchEvent(new Event("site_config_updated"));
+    // Notify ALL other open tabs instantly via BroadcastChannel
+    getChannel()?.postMessage({ type: "config_updated", config });
   } catch (e) {
     console.error("Failed to save to localStorage", e);
   }

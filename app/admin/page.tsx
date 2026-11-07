@@ -43,12 +43,31 @@ export default function AdminPage() {
   const [uploadingSong, setUploadingSong] = useState(false);
   const [audioPreview, setAudioPreview] = useState<HTMLAudioElement | null>(null);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [autoSave, setAutoSave] = useState(true);
+  const autoSaveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Sync formData when config changes from another tab
   useEffect(() => {
     if (config) {
       setFormData(config);
     }
   }, [config]);
+
+  // Auto-save: debounced 800ms after any formData change
+  useEffect(() => {
+    if (!autoSave || !isAuthenticated) return;
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(async () => {
+      setSaveStatus("saving");
+      const ok = await updateConfig(formData);
+      setSaveStatus(ok ? "saved" : "error");
+      setTimeout(() => setSaveStatus("idle"), 2000);
+    }, 800);
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData, autoSave, isAuthenticated]);
 
   // Check if admin is already unlocked in sessionStorage
   useEffect(() => {
@@ -271,6 +290,21 @@ export default function AdminPage() {
             <span>Live Preview</span>
             <ExternalLink className="w-3 h-3 text-[#776b5f]" />
           </a>
+
+          {/* Auto-Save toggle */}
+          <button
+            type="button"
+            onClick={() => setAutoSave((v) => !v)}
+            title={autoSave ? "Auto-Save is ON — changes apply instantly" : "Auto-Save is OFF — click Save manually"}
+            className={`px-3.5 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition cursor-pointer ${
+              autoSave
+                ? "bg-green-900/30 border-green-700/50 text-green-300 hover:bg-green-800/40"
+                : "bg-[#221c18] border-[#3b3028] text-[#a89b8d] hover:text-white"
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${autoSave ? "bg-green-400 animate-pulse" : "bg-gray-500"}`} />
+            <span>{autoSave ? "Auto-Save ON" : "Auto-Save OFF"}</span>
+          </button>
 
           <button
             type="button"
