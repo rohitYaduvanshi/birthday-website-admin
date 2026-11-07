@@ -77,6 +77,17 @@ function LazySection({
 export default function Home() {
   const { config } = useConfig();
 
+  // Forward live config updates to child iframes
+  useEffect(() => {
+    if (!config) return;
+    const iframes = document.querySelectorAll("iframe");
+    iframes.forEach((ifr) => {
+      try {
+        ifr.contentWindow?.postMessage({ type: "config_updated", config }, "*");
+      } catch (_) {}
+    });
+  }, [config]);
+
   const sectionClass =
     "h-[100dvh] min-h-[100dvh] w-full snap-start snap-always shrink-0 overflow-hidden relative z-10";
 

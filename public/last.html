@@ -484,10 +484,55 @@ body{
 
 <script>
 let siteConfig = null;
+function syncConfigElements(cfg) {
+  if (!cfg) return;
+  siteConfig = cfg;
+  if (cfg.chatStory && cfg.chatStory.avatar) {
+    const av = document.getElementById('chatAvatar');
+    if (av) av.src = cfg.chatStory.avatar;
+  } else if (cfg.photos && cfg.photos.length > 0) {
+    const av = document.getElementById('chatAvatar');
+    if (av) av.src = cfg.photos[0];
+  }
+  const nm = document.getElementById('chatName');
+  if (nm) {
+    if (cfg.chatStory && cfg.chatStory.headerTitle) {
+      nm.textContent = cfg.chatStory.headerTitle;
+    } else if (cfg.person && cfg.person.nickname) {
+      nm.textContent = cfg.person.nickname;
+    }
+  }
+}
+
 try {
   const raw = localStorage.getItem('birthday_site_config_v1');
   if (raw) siteConfig = JSON.parse(raw);
 } catch(e) {}
+
+// Listen for instant live updates
+try {
+  const ch = new BroadcastChannel('birthday_config_sync');
+  ch.onmessage = (e) => {
+    if (e.data?.type === 'config_updated' && e.data?.config) {
+      syncConfigElements(e.data.config);
+    }
+  };
+} catch(e) {}
+
+window.addEventListener('storage', (e) => {
+  if (e.key === 'birthday_site_config_v1' || !e.key) {
+    try {
+      const raw = localStorage.getItem('birthday_site_config_v1');
+      if (raw) syncConfigElements(JSON.parse(raw));
+    } catch(err) {}
+  }
+});
+
+window.addEventListener('message', (e) => {
+  if (e.data?.type === 'config_updated' && e.data?.config) {
+    syncConfigElements(e.data.config);
+  }
+});
 
 const defaultMessages = [
   "Happppyeee birthday love,",

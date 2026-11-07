@@ -475,10 +475,65 @@
 <script>
   // Read dynamic configuration if available
   let siteConfig = null;
+  function loadStoredConfig() {
+    try {
+      const raw = localStorage.getItem('birthday_site_config_v1');
+      if (raw) siteConfig = JSON.parse(raw);
+    } catch(e) {}
+  }
+  loadStoredConfig();
+
+  // Listen for instant config updates from admin panel
+  function applyLiveConfig(cfg) {
+    if (!cfg) return;
+    siteConfig = cfg;
+    if (cfg.music) {
+      if (cfg.music.songSrc && bgMusic) {
+        const curSrc = bgMusic.currentSrc || bgMusic.src;
+        if (!curSrc.includes(cfg.music.songSrc)) {
+          const wasPlaying = !bgMusic.paused;
+          bgMusic.src = cfg.music.songSrc;
+          if (wasPlaying) bgMusic.play().catch(() => {});
+        }
+      }
+      const titleEl = document.querySelector('.player-title');
+      const artistEl = document.querySelector('.player-artist');
+      if (titleEl && cfg.music.songTitle) titleEl.textContent = cfg.music.songTitle;
+      if (artistEl && cfg.music.songArtist) artistEl.textContent = cfg.music.songArtist;
+    }
+    if (cfg.birthdayCounter && cfg.birthdayCounter.bgRevealImage && bgRevealImg) {
+      bgRevealImg.src = cfg.birthdayCounter.bgRevealImage;
+    }
+    if (cfg.photos && cfg.photos.length > 1) {
+      const artA = document.getElementById('artA');
+      const artB = document.getElementById('artB');
+      if (artA && cfg.photos[1]) artA.src = cfg.photos[1];
+      if (artB && cfg.photos[2]) artB.src = cfg.photos[2];
+    }
+  }
+
+  // Cross-tab / BroadcastChannel listener
   try {
-    const raw = localStorage.getItem('birthday_site_config_v1');
-    if (raw) siteConfig = JSON.parse(raw);
+    const ch = new BroadcastChannel('birthday_config_sync');
+    ch.onmessage = (e) => {
+      if (e.data?.type === 'config_updated' && e.data?.config) {
+        applyLiveConfig(e.data.config);
+      }
+    };
   } catch(e) {}
+
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'birthday_site_config_v1' || !e.key) {
+      loadStoredConfig();
+      applyLiveConfig(siteConfig);
+    }
+  });
+
+  window.addEventListener('message', (e) => {
+    if (e.data?.type === 'config_updated' && e.data?.config) {
+      applyLiveConfig(e.data.config);
+    }
+  });
 
   // ---- EDIT THIS: real birth date/time, given in IST (India Standard Time) ----
   // 14:30 IST on Aug 2, 2003 == 09:00 UTC on Aug 2, 2003  (birth year set so the reveal lands on 23)
