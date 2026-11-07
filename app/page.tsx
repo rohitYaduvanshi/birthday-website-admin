@@ -114,6 +114,22 @@ export default function Home() {
             allow="autoplay"
             loading="eager"
           />
+          {/* Scroll Hint to easily navigate down on touch devices */}
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.getElementById("section-2");
+              if (el) el.scrollIntoView({ behavior: "smooth" });
+              else {
+                const container = document.getElementById("main-scroll-container");
+                if (container) container.scrollBy({ top: window.innerHeight, behavior: "smooth" });
+              }
+            }}
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 px-4 py-1.5 rounded-full bg-black/70 backdrop-blur-md border border-white/20 text-amber-300 hover:text-white text-xs font-medium flex items-center gap-1.5 shadow-xl cursor-pointer select-none transition active:scale-95"
+          >
+            <span>Scroll Down</span>
+            <span className="text-amber-400 font-bold">↓</span>
+          </button>
         </section>
 
         {/* Section 2: Hero — load when near */}

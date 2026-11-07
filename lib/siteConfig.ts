@@ -76,7 +76,7 @@ export const defaultSiteConfig: SiteConfig = {
     marqueeTitle: "NOW SHOWING",
     marqueeSub: "a Pipi production, live NOV 11th",
     doorsText: "doors open at midnight, IST",
-    showPreviewButton: true,  // Set false before sharing with birthday person
+    showPreviewButton: true, // Set to false before sharing with recipient
   },
   music: {
     songSrc: "/sounds/pipi-song.mp3",
@@ -90,7 +90,7 @@ export const defaultSiteConfig: SiteConfig = {
   },
   photos: [
     "/ref/heart.jpg",
-    "/ref/girl.jpg",
+    "/ref/girl1.jpg",
     "/ref/girl2.jpg",
     "/ref/girl3.jpg",
     "/ref/girl4.jpg",
@@ -103,16 +103,16 @@ export const defaultSiteConfig: SiteConfig = {
     "/ref/girl11.jpg",
   ],
   loveGalleryCaptions: [
-    "Cutie 🥹",
-    "Baddie 😎",
-    "Pretty ✨",
-    "My Love 🤍",
-    "Sunshine ☀️",
-    "Angel 🪽",
-    "Beautiful 🌸",
-    "Dream Girl 💫",
-    "Queen 👑",
-    "Always You 🫶",
+    "Your smile is my favorite memory",
+    "Every little moment with you counts",
+    "You make the whole world softer",
+    "Forever grateful for your warmth",
+    "May your brightest days be ahead",
+    "The way you laugh makes my day",
+    "Another year of pure joy with you",
+    "You are magic in human form",
+    "To many more adventures together",
+    "Happy Birthday my favourite person",
   ],
   butterflyNotes: [
     {
@@ -124,26 +124,26 @@ export const defaultSiteConfig: SiteConfig = {
     {
       id: "n2",
       title: "02",
-      text: "Is butterfly ki tarah meri har khushi ka raasta bhi aakhir tum tak hi aakar rukta hai. 🫶",
-      accent: "#C9A15E",
+      text: "You turned ordinary days into ones worth remembering. Thank you for simply existing.",
+      accent: "#C49A45",
     },
     {
       id: "n3",
       title: "03",
-      text: "Tumne butterfly ko touch kiya... aur meri heartbeat phir se skip kar gayi. 😭❤️",
-      accent: "#7E9C68",
+      text: "If I could replay one chapter of my life, I'd pick every minute I spent laughing with you.",
+      accent: "#7A9E7E",
     },
     {
       id: "n4",
       title: "04",
-      text: "Looks like you're really good at catching butterflies... no wonder you caught my heart so easily. ❤️",
-      accent: "#B27A94",
+      text: "Another year older, but you still manage to be the prettiest thing in every room you enter.",
+      accent: "#8E7AA0",
     },
     {
       id: "n5",
       title: "05",
-      text: "This butterfly landed in your hands for a moment... my heart chose to stay there forever. 🦋",
-      accent: "#7C8FA6",
+      text: "I hope today reminds you of how deeply you are cherished, today and all the days after.",
+      accent: "#B86B77",
     },
   ],
   galaxyCards: [
@@ -182,6 +182,23 @@ export const CONFIG_STORAGE_KEY = "birthday_site_config_v1";
 export function getClientConfig(): SiteConfig {
   if (typeof window === "undefined") return defaultSiteConfig;
   try {
+    // 1. Check if config is provided via URL hash (for recipient link sharing)
+    if (window.location.hash && window.location.hash.startsWith("#cfg=")) {
+      try {
+        const encoded = window.location.hash.slice(5);
+        const decoded = decodeURIComponent(escape(atob(encoded)));
+        const parsedFromUrl = JSON.parse(decoded);
+        if (parsedFromUrl && parsedFromUrl.person) {
+          const merged = { ...defaultSiteConfig, ...parsedFromUrl };
+          localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(merged));
+          return merged;
+        }
+      } catch (err) {
+        console.warn("Failed to parse config from URL hash", err);
+      }
+    }
+
+    // 2. Read from localStorage
     const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
@@ -197,7 +214,11 @@ let _channel: BroadcastChannel | null = null;
 function getChannel(): BroadcastChannel | null {
   if (typeof window === "undefined") return null;
   if (!_channel) {
-    try { _channel = new BroadcastChannel("birthday_config_sync"); } catch { _channel = null; }
+    try {
+      _channel = new BroadcastChannel("birthday_config_sync");
+    } catch {
+      _channel = null;
+    }
   }
   return _channel;
 }
@@ -208,10 +229,9 @@ export function saveClientConfig(config: SiteConfig): void {
     localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
     // Notify same tab
     window.dispatchEvent(new Event("site_config_updated"));
-    // Notify ALL other open tabs instantly via BroadcastChannel
+    // Notify all other tabs via BroadcastChannel
     getChannel()?.postMessage({ type: "config_updated", config });
   } catch (e) {
     console.error("Failed to save to localStorage", e);
   }
 }
-

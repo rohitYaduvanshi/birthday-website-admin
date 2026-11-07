@@ -33,9 +33,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full min-h-[100dvh] overflow-hidden antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} min-h-[100dvh] antialiased`}
     >
-      <body suppressHydrationWarning className="h-full min-h-[100dvh] w-full overflow-hidden m-0 p-0">
+      <body suppressHydrationWarning className="min-h-[100dvh] w-full m-0 p-0 text-white bg-black">
         <ConfigProvider>{children}</ConfigProvider>
       </body>
     </html>

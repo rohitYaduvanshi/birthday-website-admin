@@ -78,15 +78,15 @@ export const ConfigProvider = ({ children }: { children: React.ReactNode }) => {
     setConfig(newConfig);
     saveClientConfig(newConfig);
     try {
-      const res = await fetch("/api/config", {
+      await fetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newConfig),
-      });
-      return res.ok;
+      }).catch(() => {});
     } catch {
-      return true; // localStorage saved — that's enough
+      // Ignore network / serverless write issues — client state is saved
     }
+    return true;
   };
 
   const resetToDefaults = async () => updateConfig(defaultSiteConfig);
