@@ -213,7 +213,7 @@ export default function AdminPage() {
   };
 
   // Client-side image compression to Base64 (zero server dependency, never fails on Netlify/Vercel)
-  const compressImage = (file: File, maxWidth = 800, quality = 0.78): Promise<string> => {
+  const compressImage = (file: File, maxWidth = 640, quality = 0.72): Promise<string> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -1042,7 +1042,7 @@ export default function AdminPage() {
                         <span>Upload Photo</span>
                         <input
                           type="file"
-                          accept="image/*"
+                          accept="image/jpeg,image/png,image/webp,image/*"
                           className="hidden"
                           onChange={(e) => {
                             const file = e.target.files?.[0];

@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
+import fs from "fs";
+import path from "path";
 import { defaultSiteConfig, SiteConfig } from "@/lib/siteConfig";
+
+const configPath = path.join(process.cwd(), "public", "site-config.json");
 
 // ─── Netlify Blobs (persistent cross-request storage on Netlify) ──────────────
 // This is the ONLY reliable way to persist config on a serverless platform.
@@ -40,10 +44,24 @@ export async function GET() {
       }
     }
   } catch (err) {
-    console.warn("Netlify Blobs GET error (using defaults):", err);
+    console.warn("Netlify Blobs GET error:", err);
   }
 
-  // 3. Return defaults if nothing saved yet
+  // 3. Try reading local public/site-config.json file if exists
+  try {
+    if (fs.existsSync(configPath)) {
+      const fileData = fs.readFileSync(configPath, "utf-8");
+      const cfg = JSON.parse(fileData) as SiteConfig;
+      if (cfg && cfg.person) {
+        memCache = cfg;
+        return NextResponse.json(cfg, {
+          headers: { "Cache-Control": "no-store, max-age=0" },
+        });
+      }
+    }
+  } catch (_) {}
+
+  // 4. Return defaults if nothing saved yet
   return NextResponse.json(defaultSiteConfig, {
     headers: { "Cache-Control": "no-store, max-age=0" },
   });
@@ -56,7 +74,12 @@ export async function POST(req: Request) {
     // Update in-memory cache immediately
     memCache = body;
 
-    // Persist to Netlify Blobs (survives across all users & devices)
+    // Persist to disk if writable (localhost)
+    try {
+      fs.writeFileSync(configPath, JSON.stringify(body, null, 2), "utf-8");
+    } catch (_) {}
+
+    // Persist to Netlify Blobs (survives across all users & devices on Netlify)
     try {
       const store = await getBlobStore();
       if (store) {
@@ -64,7 +87,6 @@ export async function POST(req: Request) {
       }
     } catch (blobErr) {
       console.warn("Netlify Blobs POST error:", blobErr);
-      // Not fatal — client localStorage still has it
     }
 
     return NextResponse.json({ success: true });

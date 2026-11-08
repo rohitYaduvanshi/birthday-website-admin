@@ -502,6 +502,9 @@ function syncConfigElements(cfg) {
       nm.textContent = cfg.person.nickname;
     }
   }
+  if (cfg.chatStory && cfg.chatStory.messages && cfg.chatStory.messages.length > 0) {
+    MESSAGES = cfg.chatStory.messages;
+  }
 }
 
 try {
@@ -556,7 +559,7 @@ const defaultMessages = [
   "Happppyeee birthday love 🫂"
 ];
 
-const MESSAGES = (siteConfig && siteConfig.chatStory && siteConfig.chatStory.messages && siteConfig.chatStory.messages.length > 0)
+let MESSAGES = (siteConfig && siteConfig.chatStory && siteConfig.chatStory.messages && siteConfig.chatStory.messages.length > 0)
   ? siteConfig.chatStory.messages
   : defaultMessages;
 

@@ -64,15 +64,15 @@ export interface SiteConfig {
 
 export const defaultSiteConfig: SiteConfig = {
   person: {
-    name: "Sweety",
-    nickname: "sidd's pipi ♥️",
-    heroDateBadge: "Aug 5",
+    name: "Rupa",
+    nickname: "Laddo ♥️",
+    heroDateBadge: "Nov 09",
     heroWishMessage:
       "wishing you a day filled with love, laughter, and all the happiness your heart can hold. May this year bring you endless joy and unforgettable memories. Happy Birthday!",
   },
   countdown: {
-    targetDate: "2026-11-11T00:00:00+05:30",
-    tickerText: "SAVE THE DATE · NOV 11 ·",
+    targetDate: "2026-11-09T00:00:00+05:30",
+    tickerText: "SAVE THE DATE · NOV 09·",
     marqueeTitle: "NOW SHOWING",
     marqueeSub: "a Pipi production, live NOV 11th",
     doorsText: "doors open at midnight, IST",

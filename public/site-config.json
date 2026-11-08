@@ -9,7 +9,7 @@
     "targetDate": "2026-11-09T00:00:00+05:30",
     "tickerText": "SAVE THE DATE · NOV 09·",
     "marqueeTitle": "NOW SHOWING",
-    "marqueeSub": "a Pipi production, live NOV 11th",
+    "marqueeSub": "a Pipi production, live NOV 09th",
     "doorsText": "doors open at midnight, IST",
     "showPreviewButton": true
   },
@@ -19,8 +19,8 @@
     "songArtist": "Birthday Playlist"
   },
   "birthdayCounter": {
-    "birthDate": "2003-08-05T00:00:00",
-    "age": 23,
+    "birthDate": "2007-11-09T00:00:00",
+    "age": 18,
     "bgRevealImage": "/bg2.jpg"
   },
   "photos": [

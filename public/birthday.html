@@ -412,7 +412,7 @@
   id="bgMusic"
   loop
   playsinline
-  preload="auto"
+  preload="none"
   volume="0.7"
 >
   <source src="/sounds/pipi-song.mp3" type="audio/mpeg">
@@ -501,8 +501,30 @@
       if (titleEl && cfg.music.songTitle) titleEl.textContent = cfg.music.songTitle;
       if (artistEl && cfg.music.songArtist) artistEl.textContent = cfg.music.songArtist;
     }
-    if (cfg.birthdayCounter && cfg.birthdayCounter.bgRevealImage && bgRevealImg) {
-      bgRevealImg.src = cfg.birthdayCounter.bgRevealImage;
+    if (cfg.birthdayCounter) {
+      if (cfg.birthdayCounter.bgRevealImage && bgRevealImg) {
+        bgRevealImg.src = cfg.birthdayCounter.bgRevealImage;
+      }
+      if (cfg.birthdayCounter.age !== undefined && cfg.birthdayCounter.age !== null) {
+        const parsedA = Number(cfg.birthdayCounter.age);
+        if (!isNaN(parsedA) && parsedA > 0) {
+          AGE = parsedA;
+          DISPLAY_AGE = Math.max(0, AGE - 1);
+          const wm = document.getElementById('watermark');
+          if (wm) {
+            wm.textContent = String(revealed ? AGE : DISPLAY_AGE).padStart(2, '0');
+          }
+        }
+      }
+      if (cfg.birthdayCounter.birthDate) {
+        const parsedB = new Date(cfg.birthdayCounter.birthDate);
+        if (!isNaN(parsedB.getTime())) {
+          customBirthMs = Date.UTC(parsedB.getUTCFullYear(), parsedB.getUTCMonth(), parsedB.getUTCDate(), parsedB.getUTCHours(), parsedB.getUTCMinutes(), parsedB.getUTCSeconds());
+          shiftedBirth = new Date(customBirthMs + IST_OFFSET_MS);
+          const lr = document.getElementById('liveReadout');
+          if (lr) lr.textContent = readout(computeParts());
+        }
+      }
     }
     if (cfg.photos && cfg.photos.length > 0) {
       if (typeof siteConfig !== "undefined") {
@@ -582,8 +604,9 @@
   }
 
   const initial = computeParts();
-  const AGE = initial.years;
-  const DISPLAY_AGE = Math.max(0, AGE - 1);
+  let userCustomAge = (siteConfig && siteConfig.birthdayCounter && siteConfig.birthdayCounter.age) ? Number(siteConfig.birthdayCounter.age) : null;
+  let AGE = (userCustomAge !== null && !isNaN(userCustomAge) && userCustomAge > 0) ? userCustomAge : initial.years;
+  let DISPLAY_AGE = Math.max(0, AGE - 1);
 
   document.getElementById('watermark').textContent = String(DISPLAY_AGE).padStart(2,'0');
 
@@ -595,7 +618,7 @@
     // before the burn reveal, the watermark intentionally shows one year
     // less (DISPLAY_AGE) as part of the reveal effect - the ticker must
     // match that number, or it looks like the clock is wrong
-    const shownYears = revealed ? p.years : DISPLAY_AGE;
+    const shownYears = revealed ? AGE : DISPLAY_AGE;
     return `${shownYears}y · ${p.days}d · ${String(p.hours).padStart(2,'0')}:${String(p.minutes).padStart(2,'0')}:${String(p.seconds).padStart(2,'0')}`;
   }
   document.getElementById('liveReadout').textContent = readout(initial);

@@ -92,10 +92,25 @@ interface Remaining {
 
 const TARGET = new Date('2026-11-11T00:00:00+05:30').getTime();
 
-async function getRemaining(customTarget?: number) {
-  const res = await fetch('/api/time', { cache: 'no-store' });
-  const { now } = await res.json();
+let serverTimeOffset = 0;
+let hasSyncedTime = false;
 
+async function syncServerTime() {
+  if (hasSyncedTime) return;
+  try {
+    const res = await fetch('/api/time', { cache: 'no-store' });
+    const data = await res.json();
+    if (data && data.now) {
+      serverTimeOffset = data.now - Date.now();
+      hasSyncedTime = true;
+    }
+  } catch (e) {
+    hasSyncedTime = true;
+  }
+}
+
+function getRemaining(customTarget?: number) {
+  const now = Date.now() + serverTimeOffset;
   const targetToUse = customTarget || TARGET;
   const diff = targetToUse - now;
 
@@ -123,7 +138,7 @@ export default function ShowtimeCountdown({
   targetDate,
   tickerText = 'SAVE THE DATE · NOV 11 ·',
   marqueeTitle = 'NOW SHOWING',
-  marqueeSub = "a Pipi production, live NOV 11th",
+  marqueeSub = "a Pipi production, live NOV 09th",
   doorsText = 'doors open at midnight, IST',
   songSrc,
   songVolume = 0.6,
@@ -172,6 +187,7 @@ export default function ShowtimeCountdown({
   useEffect(() => {
     reduceMotionRef.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     setIsClient(true);
+    syncServerTime();
   }, []);
 
   /* ---------- lock body scroll while the lock screen is up ---------- */
@@ -374,9 +390,9 @@ export default function ShowtimeCountdown({
   /* ---------- countdown tick (stops entirely the moment unlock triggers) ---------- */
   useEffect(() => {
     if (revealed) return;
-    async function paint() {
+    function paint() {
       const targetTimestamp = targetDate ? new Date(targetDate).getTime() : TARGET;
-      const r = await getRemaining(targetTimestamp);
+      const r = getRemaining(targetTimestamp);
       paintUnit(daysRef.current, 'days', String(Math.min(r.days, 99)).padStart(2, '0'));
       paintUnit(hoursRef.current, 'hours', String(r.hours).padStart(2, '0'));
       paintUnit(minutesRef.current, 'minutes', String(r.minutes).padStart(2, '0'));
@@ -400,7 +416,7 @@ export default function ShowtimeCountdown({
         href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Caveat:wght@500;600&family=JetBrains+Mono:wght@500;700&display=swap"
       />
 
-      {songSrc && <audio ref={audioRef} src={songSrc} loop preload="auto" />}
+      {songSrc && <audio ref={audioRef} src={songSrc} loop preload="none" />}
 
       <div ref={chromeRef}>
         <div className="rail left" />
