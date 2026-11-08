@@ -37,15 +37,12 @@ export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [enteredPin, setEnteredPin] = useState("");
   const [pinError, setPinError] = useState(false);
-
-  // Forgot / Reset PIN Modal state
-  const [showForgotModal, setShowForgotModal] = useState(false);
-  const [resetNewPin, setResetNewPin] = useState("");
-  const [resetSuccessMsg, setResetSuccessMsg] = useState("");
+  const [isVerifyingPin, setIsVerifyingPin] = useState(false);
 
   // Share Modal State
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareConfigUrl, setShareConfigUrl] = useState("");
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
 
   const [activeTab, setActiveTab] = useState<
     "person" | "countdown" | "music" | "photos" | "cards" | "chat" | "settings"
@@ -104,59 +101,42 @@ export default function AdminPage() {
     }
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const correctPin = config.admin?.pin || "1111";
-    if (enteredPin.trim() === correctPin.trim()) {
-      setIsAuthenticated(true);
-      setPinError(false);
-      sessionStorage.setItem("admin_authenticated", "true");
-    } else {
-      setPinError(true);
-    }
-  };
-
-  // Reset PIN to Default (1111)
-  const handleResetPinToDefault = async () => {
-    const updated = {
-      ...formData,
-      admin: { pin: "1111" },
-    };
-    setFormData(updated);
-    saveClientConfig(updated);
-    await updateConfig(updated);
-    setResetSuccessMsg("PIN successfully reset to default: 1111");
-    setEnteredPin("1111");
+    setIsVerifyingPin(true);
     setPinError(false);
-    setTimeout(() => {
-      setShowForgotModal(false);
-      setResetSuccessMsg("");
-    }, 1800);
-  };
 
-  // Set custom new PIN from Forgot modal
-  const handleSetCustomPin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const newPinTrimmed = resetNewPin.trim();
-    if (!newPinTrimmed || newPinTrimmed.length < 3) {
-      alert("Please enter a PIN with at least 3 digits/characters.");
-      return;
+    try {
+      const res = await fetch("/api/admin/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: enteredPin.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIsAuthenticated(true);
+        setPinError(false);
+        sessionStorage.setItem("admin_authenticated", "true");
+        if (data.config) {
+          setFormData(data.config);
+          saveClientConfig(data.config);
+        }
+      } else {
+        setPinError(true);
+      }
+    } catch {
+      // Fallback: local check if server unreachable
+      const correctPin = config.admin?.pin || "1111";
+      if (enteredPin.trim() === correctPin.trim()) {
+        setIsAuthenticated(true);
+        setPinError(false);
+        sessionStorage.setItem("admin_authenticated", "true");
+      } else {
+        setPinError(true);
+      }
+    } finally {
+      setIsVerifyingPin(false);
     }
-    const updated = {
-      ...formData,
-      admin: { pin: newPinTrimmed },
-    };
-    setFormData(updated);
-    saveClientConfig(updated);
-    await updateConfig(updated);
-    setResetSuccessMsg(`New PIN set: ${newPinTrimmed}`);
-    setEnteredPin(newPinTrimmed);
-    setPinError(false);
-    setTimeout(() => {
-      setShowForgotModal(false);
-      setResetSuccessMsg("");
-      setResetNewPin("");
-    }, 1800);
   };
 
   const handleSave = async () => {
@@ -183,7 +163,28 @@ export default function AdminPage() {
     }
   };
 
-  const handleCopyShareLink = () => {
+  const handleCopyShareLink = async () => {
+    setIsGeneratingLink(true);
+    try {
+      // 1. Create a persistent session on server with all photos & messages
+      const res = await fetch("/api/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+      if (res.ok && data.sessionId) {
+        const shareUrl = `${window.location.origin}/?s=${data.sessionId}`;
+        setShareConfigUrl(shareUrl);
+        setShowShareModal(true);
+        setIsGeneratingLink(false);
+        return;
+      }
+    } catch (e) {
+      console.warn("Server session failed, falling back to URL hash:", e);
+    }
+
+    // 2. Fallback to URL hash
     try {
       const payload = {
         person: formData.person,
@@ -198,17 +199,13 @@ export default function AdminPage() {
       };
       const jsonStr = JSON.stringify(payload);
       const b64 = btoa(unescape(encodeURIComponent(jsonStr)));
-      // If payload is reasonably sized for URL
-      if (b64.length < 15000) {
-        setShareConfigUrl(`${window.location.origin}/#cfg=${b64}`);
-      } else {
-        setShareConfigUrl(window.location.origin);
-      }
+      setShareConfigUrl(`${window.location.origin}/#cfg=${b64}`);
       setShowShareModal(true);
     } catch {
-      navigator.clipboard.writeText(window.location.origin);
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2500);
+      setShareConfigUrl(window.location.origin);
+      setShowShareModal(true);
+    } finally {
+      setIsGeneratingLink(false);
     }
   };
 
@@ -346,7 +343,7 @@ export default function AdminPage() {
     );
   }
 
-  // If not logged in, show Secret PIN Lock Screen with Forgot/Reset option
+  // If not logged in, show Secret PIN Lock Screen
   if (!isAuthenticated) {
     return (
       <div className="min-h-[100dvh] bg-[#0f0d0c] text-[#f4ecd8] flex items-center justify-center p-4 selection:bg-amber-500/30">
@@ -359,33 +356,24 @@ export default function AdminPage() {
 
           <h1 className="text-xl sm:text-2xl font-bold text-center text-white mb-1.5">Birthday Admin Panel</h1>
           <p className="text-center text-xs sm:text-sm text-[#a89b8d] mb-6">
-            Enter your PIN to customize this birthday website.
+            Enter your secret PIN to unlock the admin dashboard.
           </p>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs uppercase tracking-wider text-[#a89b8d] font-mono">
-                  Admin PIN
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setShowForgotModal(true)}
-                  className="text-xs text-amber-400 hover:text-amber-300 transition underline underline-offset-2 cursor-pointer font-sans"
-                >
-                  Forgot PIN?
-                </button>
-              </div>
+              <label className="block text-xs uppercase tracking-wider text-[#a89b8d] font-mono mb-1.5">
+                Admin Security PIN
+              </label>
 
               <input
                 type="password"
-                maxLength={8}
+                maxLength={12}
                 value={enteredPin}
                 onChange={(e) => {
                   setEnteredPin(e.target.value);
                   setPinError(false);
                 }}
-                placeholder="Default: 1111"
+                placeholder="Enter PIN"
                 className={`w-full px-4 py-3 sm:py-3.5 rounded-xl bg-[#120f0e] border ${
                   pinError ? "border-red-500 focus:ring-red-500" : "border-[#3b322a] focus:border-amber-500"
                 } text-white text-center text-xl sm:text-2xl tracking-[0.3em] font-mono outline-none transition`}
@@ -393,17 +381,27 @@ export default function AdminPage() {
               />
               {pinError && (
                 <p className="text-red-400 text-xs mt-2 text-center font-mono">
-                  Incorrect PIN. Click &apos;Forgot PIN?&apos; if needed.
+                  Incorrect PIN. Access denied.
                 </p>
               )}
             </div>
 
             <button
               type="submit"
+              disabled={isVerifyingPin}
               className="w-full py-3 sm:py-3.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-black font-semibold text-sm sm:text-base tracking-wide transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-amber-500/20"
             >
-              <Unlock className="w-4 h-4" />
-              <span>Unlock Admin Panel</span>
+              {isVerifyingPin ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                  <span>Verifying PIN...</span>
+                </>
+              ) : (
+                <>
+                  <Unlock className="w-4 h-4" />
+                  <span>Unlock Admin Panel</span>
+                </>
+              )}
             </button>
           </form>
 
@@ -416,81 +414,6 @@ export default function AdminPage() {
             </a>
           </div>
         </div>
-
-        {/* FORGOT / RESET PIN MODAL */}
-        {showForgotModal && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-            <div className="w-full max-w-sm sm:max-w-md bg-[#191513] border border-[#3a3028] rounded-2xl p-6 shadow-2xl relative">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowForgotModal(false);
-                  setResetSuccessMsg("");
-                }}
-                className="absolute top-4 right-4 text-[#8f8174] hover:text-white p-1 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-4">
-                <KeyRound className="w-6 h-6" />
-              </div>
-
-              <h2 className="text-lg font-bold text-white mb-1">Reset Admin PIN</h2>
-              <p className="text-xs text-[#a89b8d] mb-4">
-                You can instantly reset your PIN to default (<strong>1111</strong>) or choose a new PIN.
-              </p>
-
-              {resetSuccessMsg ? (
-                <div className="p-3.5 rounded-xl bg-green-500/15 border border-green-500/40 text-green-300 text-xs text-center font-medium">
-                  {resetSuccessMsg}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* Option 1: Quick Reset to 1111 */}
-                  <button
-                    type="button"
-                    onClick={handleResetPinToDefault}
-                    className="w-full py-2.5 px-3 rounded-xl bg-[#261f1a] hover:bg-[#332922] border border-[#423429] text-xs font-semibold text-amber-300 flex items-center justify-center gap-2 transition cursor-pointer"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Reset to Default PIN (1111)</span>
-                  </button>
-
-                  <div className="relative flex items-center justify-center">
-                    <div className="border-t border-[#30261f] w-full" />
-                    <span className="bg-[#191513] px-2 text-[10px] text-[#786c5f] uppercase tracking-wider font-mono">
-                      or set new
-                    </span>
-                  </div>
-
-                  {/* Option 2: Enter new PIN */}
-                  <form onSubmit={handleSetCustomPin} className="space-y-3">
-                    <div>
-                      <label className="block text-[11px] font-mono text-[#a89b8d] uppercase mb-1">
-                        Enter New 4-Digit PIN
-                      </label>
-                      <input
-                        type="text"
-                        maxLength={8}
-                        placeholder="e.g. 2026 or 7777"
-                        value={resetNewPin}
-                        onChange={(e) => setResetNewPin(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-[#100d0c] border border-[#3b322a] focus:border-amber-500 text-white font-mono text-center text-lg tracking-widest outline-none"
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      className="w-full py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs transition cursor-pointer"
-                    >
-                      Save New PIN &amp; Return
-                    </button>
-                  </form>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </div>
     );
   }
@@ -523,16 +446,31 @@ export default function AdminPage() {
           <button
             type="button"
             onClick={handleCopyShareLink}
+            disabled={isGeneratingLink}
             className="px-2.5 sm:px-3.5 py-1.5 rounded-lg bg-[#221c18] hover:bg-[#2c241f] border border-[#3b3028] text-xs font-medium text-[#d8cab7] hover:text-white flex items-center gap-1.5 transition cursor-pointer"
-            title="Copy website link for birthday person"
+            title="Create private share link for birthday person"
           >
-            {copiedLink ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Share2 className="w-3.5 h-3.5 text-amber-400" />}
-            <span className="hidden sm:inline">{copiedLink ? "Link Copied!" : "Share Link"}</span>
+            {isGeneratingLink ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                <span className="hidden sm:inline">Generating...</span>
+              </>
+            ) : copiedLink ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-green-400" />
+                <span className="hidden sm:inline">Link Copied!</span>
+              </>
+            ) : (
+              <>
+                <Share2 className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline">Share Link</span>
+              </>
+            )}
           </button>
 
           {/* Live Preview Button */}
           <a
-            href="/"
+            href="/?preview=1"
             target="_blank"
             rel="noreferrer"
             className="px-2.5 sm:px-3.5 py-1.5 rounded-lg bg-[#221c18] hover:bg-[#2c241f] border border-[#3b3028] text-xs font-medium text-[#d8cab7] hover:text-white flex items-center gap-1.5 transition"
@@ -1382,7 +1320,7 @@ export default function AdminPage() {
       {/* MOBILE STICKY BOTTOM ACTION BAR (Shows only on mobile screens < 640px) */}
       <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#151210]/95 backdrop-blur-md border-t border-[#29221c] p-2.5 flex items-center justify-between gap-2 shadow-2xl">
         <a
-          href="/"
+          href="/?preview=1"
           target="_blank"
           rel="noreferrer"
           className="flex-1 py-2.5 px-3 rounded-xl bg-[#221c18] border border-[#3b3028] text-xs font-medium text-[#d8cab7] flex items-center justify-center gap-1.5"
@@ -1442,8 +1380,8 @@ export default function AdminPage() {
 
             <div>
               <h3 className="text-base sm:text-lg font-bold text-white">Share Birthday Website</h3>
-              <p className="text-xs text-[#a89b8d] mt-0.5">
-                Recipient will open this link and see your personalized photos, name &amp; song!
+              <p className="text-xs text-[#a89b8d] mt-1">
+                🔒 <strong>Private Link:</strong> Sirf is link ko kholne wale ko aapki photos, song aur customized name dikhenge. Directly website visit karne walo ko default template dikhega.
               </p>
             </div>
 
@@ -1463,7 +1401,7 @@ export default function AdminPage() {
 
               <a
                 href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                  `Happy Birthday ${formData.person.name || ""}! Open this surprise link: ${shareConfigUrl || window.location.origin}`
+                  `Happy Birthday ${formData.person.name || ""}! Open this surprise: ${shareConfigUrl || window.location.origin}`
                 )}`}
                 target="_blank"
                 rel="noreferrer"
@@ -1472,17 +1410,9 @@ export default function AdminPage() {
                 <span>Share via WhatsApp</span>
               </a>
 
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(window.location.origin);
-                  setCopiedLink(true);
-                  setTimeout(() => setCopiedLink(false), 2500);
-                }}
-                className="w-full py-2 px-3 rounded-lg bg-[#201a16] text-[#a89b8d] hover:text-white text-[11px] border border-[#30261f]"
-              >
-                Copy Simple Clean URL ({typeof window !== "undefined" ? window.location.origin : ""})
-              </button>
+              <div className="p-2.5 rounded-xl bg-[#120f0e] border border-[#2c241e] text-[11px] text-[#8e8174] font-mono break-all select-all">
+                {shareConfigUrl}
+              </div>
             </div>
           </div>
         </div>

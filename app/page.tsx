@@ -113,6 +113,11 @@ export default function Home() {
             className="w-full h-full border-none block"
             allow="autoplay"
             loading="eager"
+            onLoad={(e) => {
+              try {
+                e.currentTarget.contentWindow?.postMessage({ type: "config_updated", config }, "*");
+              } catch (_) {}
+            }}
           />
           {/* Scroll Hint to easily navigate down on touch devices */}
           <button
@@ -161,6 +166,11 @@ export default function Home() {
             className="w-full h-full border-none block"
             allow="autoplay"
             loading="lazy"
+            onLoad={(e) => {
+              try {
+                e.currentTarget.contentWindow?.postMessage({ type: "config_updated", config }, "*");
+              } catch (_) {}
+            }}
           />
         </LazySection>
       </div>

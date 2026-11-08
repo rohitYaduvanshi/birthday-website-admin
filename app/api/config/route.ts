@@ -6,8 +6,6 @@ import { defaultSiteConfig, SiteConfig } from "@/lib/siteConfig";
 const configPath = path.join(process.cwd(), "public", "site-config.json");
 
 // ─── Netlify Blobs (persistent cross-request storage on Netlify) ──────────────
-// This is the ONLY reliable way to persist config on a serverless platform.
-// Falls back gracefully on localhost.
 async function getBlobStore() {
   try {
     const { getStore } = await import("@netlify/blobs");
@@ -17,52 +15,58 @@ async function getBlobStore() {
   }
 }
 
-// In-memory cache for the same serverless instance (reduces blob reads)
+// In-memory cache
 let memCache: SiteConfig | null = null;
 
 export const runtime = "nodejs";
 
-export async function GET() {
-  // 1. Try in-memory cache first (fastest)
-  if (memCache) {
-    return NextResponse.json(memCache, {
-      headers: { "Cache-Control": "no-store, max-age=0" },
-    });
-  }
+async function loadFullConfig(): Promise<SiteConfig> {
+  if (memCache) return memCache;
 
-  // 2. Try Netlify Blobs (persistent across all requests & devices)
+  // Try Netlify Blobs
   try {
     const store = await getBlobStore();
     if (store) {
       const raw = await store.get("config", { type: "text" });
       if (raw) {
-        const cfg = JSON.parse(raw as string) as SiteConfig;
-        memCache = cfg;
-        return NextResponse.json(cfg, {
-          headers: { "Cache-Control": "no-store, max-age=0" },
-        });
+        memCache = JSON.parse(raw as string) as SiteConfig;
+        return memCache;
       }
     }
   } catch (err) {
     console.warn("Netlify Blobs GET error:", err);
   }
 
-  // 3. Try reading local public/site-config.json file if exists
+  // Try disk
   try {
     if (fs.existsSync(configPath)) {
       const fileData = fs.readFileSync(configPath, "utf-8");
       const cfg = JSON.parse(fileData) as SiteConfig;
       if (cfg && cfg.person) {
         memCache = cfg;
-        return NextResponse.json(cfg, {
-          headers: { "Cache-Control": "no-store, max-age=0" },
-        });
+        return memCache;
       }
     }
   } catch (_) {}
 
-  // 4. Return defaults if nothing saved yet
-  return NextResponse.json(defaultSiteConfig, {
+  return defaultSiteConfig;
+}
+
+export async function GET(req: Request) {
+  const full = await loadFullConfig();
+
+  // Security: check if caller wants full config with authorization header, or mask PIN by default
+  const auth = req.headers.get("x-admin-auth");
+  const isAuthorized = auth && auth === (full.admin?.pin || "1111");
+
+  const safeConfig = {
+    ...full,
+    admin: {
+      pin: isAuthorized ? full.admin?.pin || "1111" : "••••",
+    },
+  };
+
+  return NextResponse.json(safeConfig, {
     headers: { "Cache-Control": "no-store, max-age=0" },
   });
 }
@@ -70,6 +74,12 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body: SiteConfig = await req.json();
+
+    // Preserve existing PIN if incoming is masked "••••"
+    const current = await loadFullConfig();
+    if (body.admin?.pin === "••••" || !body.admin?.pin) {
+      body.admin = { pin: current.admin?.pin || "1111" };
+    }
 
     // Update in-memory cache immediately
     memCache = body;

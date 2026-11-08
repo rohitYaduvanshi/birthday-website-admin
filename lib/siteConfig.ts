@@ -64,19 +64,19 @@ export interface SiteConfig {
 
 export const defaultSiteConfig: SiteConfig = {
   person: {
-    name: "Rupa",
-    nickname: "Laddo ♥️",
-    heroDateBadge: "Nov 09",
+    name: "Sweety",
+    nickname: "sidd's pipi ♥️",
+    heroDateBadge: "Nov 11",
     heroWishMessage:
       "wishing you a day filled with love, laughter, and all the happiness your heart can hold. May this year bring you endless joy and unforgettable memories. Happy Birthday!",
   },
   countdown: {
-    targetDate: "2026-11-09T00:00:00+05:30",
-    tickerText: "SAVE THE DATE · NOV 09·",
+    targetDate: "2026-11-11T00:00:00+05:30",
+    tickerText: "SAVE THE DATE · NOV 11·",
     marqueeTitle: "NOW SHOWING",
-    marqueeSub: "a Pipi production, live NOV 11th",
+    marqueeSub: "a special production, live NOV 11th",
     doorsText: "doors open at midnight, IST",
-    showPreviewButton: true, // Set to false before sharing with recipient
+    showPreviewButton: true,
   },
   music: {
     songSrc: "/sounds/pipi-song.mp3",
@@ -182,7 +182,10 @@ export const CONFIG_STORAGE_KEY = "birthday_site_config_v1";
 export function getClientConfig(): SiteConfig {
   if (typeof window === "undefined") return defaultSiteConfig;
   try {
-    // 1. Check if config is provided via URL hash (for recipient link sharing)
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("s");
+
+    // 1. Check if config is provided via URL hash (#cfg=base64)
     if (window.location.hash && window.location.hash.startsWith("#cfg=")) {
       try {
         const encoded = window.location.hash.slice(5);
@@ -190,7 +193,9 @@ export function getClientConfig(): SiteConfig {
         const parsedFromUrl = JSON.parse(decoded);
         if (parsedFromUrl && parsedFromUrl.person) {
           const merged = { ...defaultSiteConfig, ...parsedFromUrl };
-          localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(merged));
+          try {
+            sessionStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(merged));
+          } catch (_) {}
           return merged;
         }
       } catch (err) {
@@ -198,12 +203,29 @@ export function getClientConfig(): SiteConfig {
       }
     }
 
-    // 2. Read from localStorage or sessionStorage
-    const raw = localStorage.getItem(CONFIG_STORAGE_KEY) || (typeof sessionStorage !== "undefined" ? sessionStorage.getItem(CONFIG_STORAGE_KEY) : null);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      return { ...defaultSiteConfig, ...parsed };
+    // 2. Check if a session ID is present and already cached in sessionStorage
+    if (sessionId) {
+      try {
+        const sessionData = sessionStorage.getItem(`bday_session_${sessionId}`);
+        if (sessionData) {
+          return { ...defaultSiteConfig, ...JSON.parse(sessionData) };
+        }
+      } catch (_) {}
     }
+
+    // 3. If on admin page or explicit preview mode, load the saved working copy
+    const isAdmin = window.location.pathname.startsWith("/admin");
+    const isPreview = params.get("preview") === "1";
+    if (isAdmin || isPreview) {
+      const raw = localStorage.getItem(CONFIG_STORAGE_KEY) || (typeof sessionStorage !== "undefined" ? sessionStorage.getItem(CONFIG_STORAGE_KEY) : null);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return { ...defaultSiteConfig, ...parsed };
+      }
+    }
+
+    // 4. Default: Public visitors to main URL without ?s= or #cfg= see ONLY the default template!
+    return defaultSiteConfig;
   } catch (e) {
     console.error("Failed to read stored config", e);
   }
@@ -225,7 +247,6 @@ function getChannel(): BroadcastChannel | null {
 
 export function saveClientConfig(config: SiteConfig): void {
   if (typeof window === "undefined") return;
-  // Try localStorage first
   try {
     localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
   } catch (e) {

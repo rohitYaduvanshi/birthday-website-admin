@@ -1201,26 +1201,18 @@
     showingA = !showingA;
   }, 3200);
 
-  // Always fetch latest config from server (Netlify Blobs stores real data)
-  // This ensures cross-device: even fresh browsers see admin's saved config
-  fetch('/api/config', { cache: 'no-store' })
-    .then(r => r.ok ? r.json() : null)
-    .then(cfg => {
-      if (cfg && cfg.person) {
-        siteConfig = cfg;
-        try { localStorage.setItem('birthday_site_config_v1', JSON.stringify(cfg)); } catch(e) {}
-        // Apply to all live elements (music, photos, bgReveal, etc.)
-        applyLiveConfig(cfg);
-        // Re-apply music since bgMusic element exists now
-        if (cfg.music && cfg.music.songSrc) {
-          const srcEl = document.querySelector('#bgMusic source');
-          if (srcEl) { srcEl.src = cfg.music.songSrc; }
-          const audioEl = document.getElementById('bgMusic');
-          if (audioEl) audioEl.load();
-        }
+  // If session ID is present in parent URL or query, load that session's config
+  try {
+    const parentParams = new URLSearchParams(window.location.search || window.parent?.location?.search || "");
+    const sId = parentParams.get("s");
+    if (sId) {
+      const cached = sessionStorage.getItem(`bday_session_${sId}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        applyLiveConfig(parsed);
       }
-    })
-    .catch(() => {});
+    }
+  } catch(_) {}
 </script>
 
 
