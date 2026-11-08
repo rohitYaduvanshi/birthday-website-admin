@@ -2,19 +2,24 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-
-const photos = [
-  "/ref/girl.jpg",
-  "/ref/girl2.jpg",
-  "/ref/girl3.jpg",
-  "/ref/girl4.jpg",
-  "/ref/girl5.jpg",
-  "/ref/girl6.jpg",
-] as const;
+import { useConfig } from "@/lib/ConfigContext";
 
 export const ToggleSection = () => {
   const [opened, setOpened] = useState(false);
   const [mouse, setMouse] = useState({ x: 0, y: 0 });
+  const { config } = useConfig();
+
+  // Use config photos, fallback to defaults
+  const photos = (config.photos && config.photos.length >= 6)
+    ? config.photos.slice(1, 7)  // photos 2-7 (skip heart photo at index 0)
+    : [
+        "/ref/girl.jpg",
+        "/ref/girl2.jpg",
+        "/ref/girl3.jpg",
+        "/ref/girl4.jpg",
+        "/ref/girl5.jpg",
+        "/ref/girl6.jpg",
+      ];
 
   useEffect(() => {
     if (!opened) return;

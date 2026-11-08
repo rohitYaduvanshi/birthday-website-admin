@@ -509,6 +509,19 @@ try {
   if (raw) siteConfig = JSON.parse(raw);
 } catch(e) {}
 
+// Always fetch latest config from server (Netlify Blobs stores real data)
+// This ensures cross-device: even fresh browsers see admin's saved config
+fetch('/api/config', { cache: 'no-store' })
+  .then(r => r.ok ? r.json() : null)
+  .then(cfg => {
+    if (cfg && cfg.person) {
+      siteConfig = cfg;
+      try { localStorage.setItem('birthday_site_config_v1', JSON.stringify(cfg)); } catch(e) {}
+      syncConfigElements(cfg);
+    }
+  })
+  .catch(() => {});
+
 // Listen for instant live updates
 try {
   const ch = new BroadcastChannel('birthday_config_sync');
