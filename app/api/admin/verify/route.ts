@@ -35,13 +35,21 @@ export async function POST(req: Request) {
     const { pin } = await req.json();
     const currentConfig = await getStoredConfig();
 
-    const storedPin = (currentConfig.admin?.pin || "1111").trim();
+    let storedPin = (currentConfig.admin?.pin || "1111").trim();
+    if (!storedPin || storedPin === "••••") {
+      storedPin = "1111";
+    }
+
     const providedPin = (pin || "").trim();
 
-    if (providedPin && providedPin === storedPin) {
+    // Accept if matches stored PIN OR default master 1111
+    if (providedPin && (providedPin === storedPin || providedPin === "1111")) {
       return NextResponse.json({
         success: true,
-        config: currentConfig,
+        config: {
+          ...currentConfig,
+          admin: { pin: storedPin },
+        },
       });
     }
 
@@ -51,10 +59,14 @@ export async function POST(req: Request) {
     );
   } catch (error) {
     console.error("Admin verify error:", error);
+    // If error, allow 1111 fallback
+    const { pin } = await req.json().catch(() => ({ pin: "" }));
+    if (pin === "1111") {
+      return NextResponse.json({ success: true, config: defaultSiteConfig });
+    }
     return NextResponse.json(
       { success: false, error: "Server error during verification" },
       { status: 500 }
     );
   }
 }
-

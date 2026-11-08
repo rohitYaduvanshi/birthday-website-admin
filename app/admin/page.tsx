@@ -103,14 +103,37 @@ export default function AdminPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    const pin = enteredPin.trim();
     setIsVerifyingPin(true);
     setPinError(false);
+
+    // Instant unlock for default master PIN 1111
+    if (pin === "1111") {
+      setIsAuthenticated(true);
+      setPinError(false);
+      sessionStorage.setItem("admin_authenticated", "true");
+      setIsVerifyingPin(false);
+      fetch("/api/admin/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.config) {
+            setFormData(d.config);
+            saveClientConfig(d.config);
+          }
+        })
+        .catch(() => {});
+      return;
+    }
 
     try {
       const res = await fetch("/api/admin/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin: enteredPin.trim() }),
+        body: JSON.stringify({ pin }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -122,12 +145,18 @@ export default function AdminPage() {
           saveClientConfig(data.config);
         }
       } else {
-        setPinError(true);
+        const stored = (config.admin?.pin || "1111").trim();
+        if (pin === stored) {
+          setIsAuthenticated(true);
+          setPinError(false);
+          sessionStorage.setItem("admin_authenticated", "true");
+        } else {
+          setPinError(true);
+        }
       }
     } catch {
-      // Fallback: local check if server unreachable
-      const correctPin = config.admin?.pin || "1111";
-      if (enteredPin.trim() === correctPin.trim()) {
+      const stored = (config.admin?.pin || "1111").trim();
+      if (pin === stored || pin === "1111") {
         setIsAuthenticated(true);
         setPinError(false);
         sessionStorage.setItem("admin_authenticated", "true");

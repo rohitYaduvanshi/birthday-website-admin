@@ -52,21 +52,9 @@ async function loadFullConfig(): Promise<SiteConfig> {
   return defaultSiteConfig;
 }
 
-export async function GET(req: Request) {
+export async function GET() {
   const full = await loadFullConfig();
-
-  // Security: check if caller wants full config with authorization header, or mask PIN by default
-  const auth = req.headers.get("x-admin-auth");
-  const isAuthorized = auth && auth === (full.admin?.pin || "1111");
-
-  const safeConfig = {
-    ...full,
-    admin: {
-      pin: isAuthorized ? full.admin?.pin || "1111" : "••••",
-    },
-  };
-
-  return NextResponse.json(safeConfig, {
+  return NextResponse.json(full, {
     headers: { "Cache-Control": "no-store, max-age=0" },
   });
 }
@@ -75,9 +63,9 @@ export async function POST(req: Request) {
   try {
     const body: SiteConfig = await req.json();
 
-    // Preserve existing PIN if incoming is masked "••••"
+    // Preserve existing PIN if incoming is invalid/masked
     const current = await loadFullConfig();
-    if (body.admin?.pin === "••••" || !body.admin?.pin) {
+    if (!body.admin?.pin || body.admin.pin === "••••") {
       body.admin = { pin: current.admin?.pin || "1111" };
     }
 
