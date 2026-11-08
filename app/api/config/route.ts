@@ -1,48 +1,72 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
 import { defaultSiteConfig, SiteConfig } from "@/lib/siteConfig";
 
-const configPath = path.join(process.cwd(), "public", "site-config.json");
+// ─── Netlify Blobs (persistent cross-request storage on Netlify) ──────────────
+// This is the ONLY reliable way to persist config on a serverless platform.
+// Falls back gracefully on localhost.
+async function getBlobStore() {
+  try {
+    const { getStore } = await import("@netlify/blobs");
+    return getStore({ name: "site-config", consistency: "strong" });
+  } catch {
+    return null;
+  }
+}
 
-// In-memory cache for serverless runtimes
-let memoryConfig: SiteConfig | null = null;
+// In-memory cache for the same serverless instance (reduces blob reads)
+let memCache: SiteConfig | null = null;
+
+export const runtime = "nodejs";
 
 export async function GET() {
-  if (memoryConfig) {
-    return NextResponse.json(memoryConfig, {
-      headers: {
-        "Cache-Control": "no-store, max-age=0",
-      },
+  // 1. Try in-memory cache first (fastest)
+  if (memCache) {
+    return NextResponse.json(memCache, {
+      headers: { "Cache-Control": "no-store, max-age=0" },
     });
   }
+
+  // 2. Try Netlify Blobs (persistent across all requests & devices)
   try {
-    if (fs.existsSync(configPath)) {
-      const fileData = fs.readFileSync(configPath, "utf-8");
-      const config = JSON.parse(fileData);
-      return NextResponse.json(config, {
-        headers: {
-          "Cache-Control": "no-store, max-age=0",
-        },
-      });
+    const store = await getBlobStore();
+    if (store) {
+      const raw = await store.get("config", { type: "text" });
+      if (raw) {
+        const cfg = JSON.parse(raw as string) as SiteConfig;
+        memCache = cfg;
+        return NextResponse.json(cfg, {
+          headers: { "Cache-Control": "no-store, max-age=0" },
+        });
+      }
     }
-  } catch (error) {
-    console.warn("Could not read site-config.json from disk, using defaults:", error);
+  } catch (err) {
+    console.warn("Netlify Blobs GET error (using defaults):", err);
   }
-  return NextResponse.json(defaultSiteConfig);
+
+  // 3. Return defaults if nothing saved yet
+  return NextResponse.json(defaultSiteConfig, {
+    headers: { "Cache-Control": "no-store, max-age=0" },
+  });
 }
 
 export async function POST(req: Request) {
   try {
     const body: SiteConfig = await req.json();
-    memoryConfig = body;
+
+    // Update in-memory cache immediately
+    memCache = body;
+
+    // Persist to Netlify Blobs (survives across all users & devices)
     try {
-      // Attempt to save to disk if on writable filesystem (e.g. localhost)
-      fs.writeFileSync(configPath, JSON.stringify(body, null, 2), "utf-8");
-    } catch (fsErr) {
-      // Netlify / Vercel serverless has a read-only filesystem; this is completely normal!
-      console.log("Serverless read-only environment: config stored in client-side state.", fsErr);
+      const store = await getBlobStore();
+      if (store) {
+        await store.set("config", JSON.stringify(body));
+      }
+    } catch (blobErr) {
+      console.warn("Netlify Blobs POST error:", blobErr);
+      // Not fatal — client localStorage still has it
     }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Config POST error:", error);

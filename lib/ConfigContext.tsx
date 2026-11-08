@@ -32,34 +32,31 @@ export const ConfigProvider = ({ children }: { children: React.ReactNode }) => {
   const fetchedRef = useRef(false);
 
   useEffect(() => {
-    // Only fetch from server once per page load
     if (fetchedRef.current) return;
     fetchedRef.current = true;
 
-    // Background sync with server config ONLY if user has never saved any custom config locally
-    // NEVER overwrite user's saved customizations with default server template!
-    const localSaved = typeof window !== "undefined" ? localStorage.getItem(CONFIG_STORAGE_KEY) : null;
-    if (!localSaved) {
-      const controller = new AbortController();
-      fetch("/api/config", { cache: "no-store", signal: controller.signal })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((serverConfig) => {
-          if (serverConfig?.person) {
-            const stillEmpty = !localStorage.getItem(CONFIG_STORAGE_KEY);
-            if (stillEmpty) {
-              setConfig(serverConfig);
-              saveClientConfig(serverConfig);
-            }
-          }
-        })
-        .catch(() => {/* silently ignore */});
-    }
+    // Always fetch fresh config from server (Netlify Blobs now stores real data!)
+    // This ensures ANY device sees the latest admin changes immediately on load.
+    const controller = new AbortController();
+    fetch("/api/config", { cache: "no-store", signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((serverConfig: SiteConfig | null) => {
+        if (serverConfig?.person) {
+          // Server has real data → use it and cache locally
+          setConfig(serverConfig);
+          saveClientConfig(serverConfig);
+        }
+        // If server returns defaults (no blob saved yet), keep localStorage version
+      })
+      .catch(() => {
+        // Network error — localStorage fallback already shown, that's fine
+      });
 
-    // Listen to changes from admin panel in SAME tab
-    const handleStorageChange = () => setConfig(getClientConfig());
-    window.addEventListener("site_config_updated", handleStorageChange);
+    // Listen for changes from admin panel in SAME tab (custom event)
+    const handleConfigUpdate = () => setConfig(getClientConfig());
+    window.addEventListener("site_config_updated", handleConfigUpdate);
 
-    // Listen to changes from admin in OTHER tabs via BroadcastChannel (instant cross-tab sync)
+    // Listen for changes from admin in OTHER tabs (BroadcastChannel — instant)
     let channel: BroadcastChannel | null = null;
     try {
       channel = new BroadcastChannel("birthday_config_sync");
@@ -69,34 +66,58 @@ export const ConfigProvider = ({ children }: { children: React.ReactNode }) => {
           saveClientConfig(e.data.config);
         }
       };
-    } catch { /* BroadcastChannel not supported — fallback to storage event */ }
+    } catch {
+      // BroadcastChannel not supported — storage event fallback below
+    }
 
-    // Fallback: storage event (fires in OTHER tabs when localStorage changes)
-    window.addEventListener("storage", handleStorageChange);
+    // storage event: fires when localStorage changes in another tab
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === CONFIG_STORAGE_KEY || !e.key) {
+        setConfig(getClientConfig());
+      }
+    };
+    window.addEventListener("storage", handleStorage);
 
     return () => {
+      controller.abort();
       channel?.close();
-      window.removeEventListener("site_config_updated", handleStorageChange);
-      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("site_config_updated", handleConfigUpdate);
+      window.removeEventListener("storage", handleStorage);
     };
   }, []);
 
   const updateConfig = async (newConfig: SiteConfig): Promise<boolean> => {
+    // 1. Update React state immediately (UI feels instant)
     setConfig(newConfig);
+    // 2. Save to localStorage + broadcast to other tabs
     saveClientConfig(newConfig);
+    // 3. Persist to server (Netlify Blobs) in background — non-blocking
     try {
-      await fetch("/api/config", {
+      fetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newConfig),
       }).catch(() => {});
     } catch {
-      // Ignore network / serverless write issues — client state is saved
+      // Non-fatal
+    }
+    return true; // Always success from user's perspective
+  };
+
+  const resetToDefaults = async (): Promise<boolean> => {
+    setConfig(defaultSiteConfig);
+    saveClientConfig(defaultSiteConfig);
+    try {
+      fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(defaultSiteConfig),
+      }).catch(() => {});
+    } catch {
+      // Non-fatal
     }
     return true;
   };
-
-  const resetToDefaults = async () => updateConfig(defaultSiteConfig);
 
   return (
     <ConfigContext.Provider value={{ config, updateConfig, resetToDefaults, isLoading }}>
