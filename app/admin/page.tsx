@@ -59,27 +59,41 @@ export default function AdminPage() {
   const [autoSave, setAutoSave] = useState(true);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Sync formData when config changes from another tab
+  const isInitializedRef = useRef(false);
+
+  // Initialize formData ONCE on initial load
+  // CRITICAL: Never reset formData while user is actively typing/editing in admin!
   useEffect(() => {
-    if (config) {
+    if (!isInitializedRef.current && config) {
       setFormData(config);
+      isInitializedRef.current = true;
     }
   }, [config]);
 
-  // Auto-save: debounced 800ms after any formData change
+  // Smooth Auto-save: debounced 1500ms after user stops typing
+  // Saves directly to localStorage & broadcasts without interrupting mobile keyboard or cursor!
   useEffect(() => {
-    if (!autoSave || !isAuthenticated) return;
+    if (!autoSave || !isAuthenticated || !isInitializedRef.current) return;
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(async () => {
       setSaveStatus("saving");
-      const ok = await updateConfig(formData);
-      setSaveStatus(ok ? "saved" : "error");
-      setTimeout(() => setSaveStatus("idle"), 2000);
-    }, 800);
+      try {
+        saveClientConfig(formData);
+        // Non-blocking background sync with server
+        fetch("/api/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        }).catch(() => {});
+        setSaveStatus("saved");
+        setTimeout(() => setSaveStatus("idle"), 2500);
+      } catch {
+        setSaveStatus("error");
+      }
+    }, 1500);
     return () => {
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData, autoSave, isAuthenticated]);
 
   // Check if admin is already unlocked in sessionStorage

@@ -5,7 +5,17 @@ import { defaultSiteConfig, SiteConfig } from "@/lib/siteConfig";
 
 const configPath = path.join(process.cwd(), "public", "site-config.json");
 
+// In-memory cache for serverless runtimes
+let memoryConfig: SiteConfig | null = null;
+
 export async function GET() {
+  if (memoryConfig) {
+    return NextResponse.json(memoryConfig, {
+      headers: {
+        "Cache-Control": "no-store, max-age=0",
+      },
+    });
+  }
   try {
     if (fs.existsSync(configPath)) {
       const fileData = fs.readFileSync(configPath, "utf-8");
@@ -25,6 +35,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body: SiteConfig = await req.json();
+    memoryConfig = body;
     try {
       // Attempt to save to disk if on writable filesystem (e.g. localhost)
       fs.writeFileSync(configPath, JSON.stringify(body, null, 2), "utf-8");

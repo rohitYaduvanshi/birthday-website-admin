@@ -6,6 +6,7 @@ import {
   defaultSiteConfig,
   getClientConfig,
   saveClientConfig,
+  CONFIG_STORAGE_KEY,
 } from "./siteConfig";
 
 interface ConfigContextType {
@@ -35,17 +36,24 @@ export const ConfigProvider = ({ children }: { children: React.ReactNode }) => {
     if (fetchedRef.current) return;
     fetchedRef.current = true;
 
-    // Background sync with server config (non-blocking)
-    const controller = new AbortController();
-    fetch("/api/config", { cache: "no-store", signal: controller.signal })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((serverConfig) => {
-        if (serverConfig?.person) {
-          setConfig(serverConfig);
-          saveClientConfig(serverConfig);
-        }
-      })
-      .catch(() => {/* silently ignore — localStorage fallback already shown */});
+    // Background sync with server config ONLY if user has never saved any custom config locally
+    // NEVER overwrite user's saved customizations with default server template!
+    const localSaved = typeof window !== "undefined" ? localStorage.getItem(CONFIG_STORAGE_KEY) : null;
+    if (!localSaved) {
+      const controller = new AbortController();
+      fetch("/api/config", { cache: "no-store", signal: controller.signal })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((serverConfig) => {
+          if (serverConfig?.person) {
+            const stillEmpty = !localStorage.getItem(CONFIG_STORAGE_KEY);
+            if (stillEmpty) {
+              setConfig(serverConfig);
+              saveClientConfig(serverConfig);
+            }
+          }
+        })
+        .catch(() => {/* silently ignore */});
+    }
 
     // Listen to changes from admin panel in SAME tab
     const handleStorageChange = () => setConfig(getClientConfig());
@@ -67,7 +75,6 @@ export const ConfigProvider = ({ children }: { children: React.ReactNode }) => {
     window.addEventListener("storage", handleStorageChange);
 
     return () => {
-      controller.abort();
       channel?.close();
       window.removeEventListener("site_config_updated", handleStorageChange);
       window.removeEventListener("storage", handleStorageChange);
