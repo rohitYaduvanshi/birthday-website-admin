@@ -198,14 +198,14 @@ export function getClientConfig(): SiteConfig {
       }
     }
 
-    // 2. Read from localStorage
-    const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
+    // 2. Read from localStorage or sessionStorage
+    const raw = localStorage.getItem(CONFIG_STORAGE_KEY) || (typeof sessionStorage !== "undefined" ? sessionStorage.getItem(CONFIG_STORAGE_KEY) : null);
     if (raw) {
       const parsed = JSON.parse(raw);
       return { ...defaultSiteConfig, ...parsed };
     }
   } catch (e) {
-    console.error("Failed to read localStorage config", e);
+    console.error("Failed to read stored config", e);
   }
   return defaultSiteConfig;
 }
@@ -225,13 +225,21 @@ function getChannel(): BroadcastChannel | null {
 
 export function saveClientConfig(config: SiteConfig): void {
   if (typeof window === "undefined") return;
+  // Try localStorage first
   try {
     localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
-    // Notify same tab
+  } catch (e) {
+    console.warn("localStorage quota exceeded or blocked, falling back to sessionStorage", e);
+    try {
+      sessionStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
+    } catch (_) {}
+  }
+
+  // ALWAYS dispatch events so same tab & cross-tab sync works 100%
+  try {
     window.dispatchEvent(new Event("site_config_updated"));
-    // Notify all other tabs via BroadcastChannel
     getChannel()?.postMessage({ type: "config_updated", config });
   } catch (e) {
-    console.error("Failed to save to localStorage", e);
+    console.error("Broadcast failed:", e);
   }
 }

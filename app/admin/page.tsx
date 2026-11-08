@@ -199,7 +199,7 @@ export default function AdminPage() {
   };
 
   // Client-side image compression to Base64 (zero server dependency, never fails on Netlify/Vercel)
-  const compressImage = (file: File, maxWidth = 900, quality = 0.82): Promise<string> => {
+  const compressImage = (file: File, maxWidth = 800, quality = 0.78): Promise<string> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -208,9 +208,14 @@ export default function AdminPage() {
         img.onload = () => {
           let w = img.width;
           let h = img.height;
-          if (w > maxWidth) {
-            h = Math.round((h * maxWidth) / w);
-            w = maxWidth;
+          if (w > maxWidth || h > maxWidth) {
+            if (w > h) {
+              h = Math.round((h * maxWidth) / w);
+              w = maxWidth;
+            } else {
+              w = Math.round((w * maxWidth) / h);
+              h = maxWidth;
+            }
           }
           const canvas = document.createElement("canvas");
           canvas.width = w;
@@ -237,19 +242,24 @@ export default function AdminPage() {
     try {
       if (type === "audio") {
         setUploadingSong(true);
-        // If file is smaller than 4MB, read as data URL so it never fails on Netlify
+        // If file is smaller than 4.5MB, read as data URL so it never fails on Netlify
         if (file.size < 4.5 * 1024 * 1024) {
           const reader = new FileReader();
-          reader.onload = (e) => {
+          reader.onload = async (e) => {
             const dataUrl = e.target?.result as string;
-            setFormData((prev) => ({
-              ...prev,
+            const updated = {
+              ...formData,
               music: {
-                ...prev.music,
+                ...formData.music,
                 songSrc: dataUrl,
               },
-            }));
+            };
+            setFormData(updated);
+            saveClientConfig(updated);
+            await updateConfig(updated);
             setUploadingSong(false);
+            setSaveStatus("saved");
+            setTimeout(() => setSaveStatus("idle"), 2500);
           };
           reader.readAsDataURL(file);
         } else {
@@ -259,23 +269,36 @@ export default function AdminPage() {
           const res = await fetch("/api/upload", { method: "POST", body: data });
           const json = await res.json();
           if (json?.url) {
-            setFormData((prev) => ({
-              ...prev,
-              music: { ...prev.music, songSrc: json.url },
-            }));
+            const updated = {
+              ...formData,
+              music: { ...formData.music, songSrc: json.url },
+            };
+            setFormData(updated);
+            saveClientConfig(updated);
+            await updateConfig(updated);
           }
           setUploadingSong(false);
+          setSaveStatus("saved");
+          setTimeout(() => setSaveStatus("idle"), 2500);
         }
       } else if (type === "image" && targetIndex !== undefined) {
         setUploadingIndex(targetIndex);
-        // Instant client-side compression: 0% failure rate
-        const compressedDataUrl = await compressImage(file, 900, 0.82);
-        setFormData((prev) => {
-          const newPhotos = [...(prev.photos || [])];
+        try {
+          // Instant client-side compression: 0% failure rate
+          const compressedDataUrl = await compressImage(file, 800, 0.78);
+          const newPhotos = [...(formData.photos || [])];
           newPhotos[targetIndex] = compressedDataUrl;
-          return { ...prev, photos: newPhotos };
-        });
-        setUploadingIndex(null);
+          const updated = { ...formData, photos: newPhotos };
+          setFormData(updated);
+          saveClientConfig(updated);
+          await updateConfig(updated);
+          setSaveStatus("saved");
+          setTimeout(() => setSaveStatus("idle"), 2500);
+        } catch (imgErr) {
+          console.warn("Image compress/save error:", imgErr);
+        } finally {
+          setUploadingIndex(null);
+        }
       }
     } catch (err) {
       console.warn("Upload fallback error:", err);
@@ -1010,6 +1033,7 @@ export default function AdminPage() {
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) handleFileUpload(file, "image", idx);
+                            e.target.value = "";
                           }}
                         />
                       </label>

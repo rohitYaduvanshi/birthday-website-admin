@@ -504,7 +504,10 @@
     if (cfg.birthdayCounter && cfg.birthdayCounter.bgRevealImage && bgRevealImg) {
       bgRevealImg.src = cfg.birthdayCounter.bgRevealImage;
     }
-    if (cfg.photos && cfg.photos.length > 1) {
+    if (cfg.photos && cfg.photos.length > 0) {
+      if (typeof siteConfig !== "undefined") {
+        siteConfig.photos = cfg.photos;
+      }
       const artA = document.getElementById('artA');
       const artB = document.getElementById('artB');
       if (artA && cfg.photos[1]) artA.src = cfg.photos[1];

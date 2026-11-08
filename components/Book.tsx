@@ -140,6 +140,7 @@ export default function Book() {
           alt="Front Cover"
           fill
           priority
+          unoptimized
           draggable={false}
           className="object-contain scale-33  rotate-10  translate-x-14 -translate-y-23 "
         ></Image>
@@ -203,6 +204,7 @@ export default function Book() {
           alt="Front Cover"
           fill
           priority
+          unoptimized
           draggable={false}
           className="object-contain shadow-black rotate-20  translate-x-19 -translate-y-22  scale-22   "
         ></Image>
@@ -212,6 +214,7 @@ export default function Book() {
           alt="Front Cover"
           fill
           priority
+          unoptimized
           draggable={false}
           className="object-contain shadow-black rotate-20  translate-x-26 -translate-y-43  scale-22   "
         ></Image>
@@ -221,6 +224,7 @@ export default function Book() {
           alt="Front Cover"
           fill
           priority
+          unoptimized
           draggable={false}
           className="object-contain shadow-black rotate-20  translate-x-11 translate-y-1  scale-22   "
         ></Image>
@@ -306,6 +310,7 @@ export default function Book() {
           alt="Frame"
           fill
           priority
+          unoptimized
           draggable={false}
           className="object-contain scale-33 rotate-17 translate-x-13 -translate-y-21 z-30"
         />
@@ -406,6 +411,7 @@ export default function Book() {
           alt="Disk"
           fill
           priority
+          unoptimized
           draggable={false}
           className="object-contain scale-32  rotate-0 z-50 translate-x-19 -translate-y-32 "
         />
@@ -493,6 +499,7 @@ export default function Book() {
           alt="Disk"
           fill
           priority
+          unoptimized
           draggable={false}
           className="object-contain scale-26  -rotate-11 z-50 translate-x-4 -translate-y-12 "
         />
@@ -502,6 +509,7 @@ export default function Book() {
           alt="Disk"
           fill
           priority
+          unoptimized
           draggable={false}
           className="object-contain scale-26  rotate-11 z-50 translate-x-16 -translate-y-40 "
         />
@@ -572,6 +580,7 @@ export default function Book() {
           alt="Disk"
           fill
           priority
+          unoptimized
           draggable={false}
           className="object-contain scale-28  -rotate-4 z-50 -translate-x-18 -translate-y-16 "
         />
@@ -581,6 +590,7 @@ export default function Book() {
           alt="Disk"
           fill
           priority
+          unoptimized
           draggable={false}
           className="object-contain scale-27  rotate-10 z-50 -translate-x-11 translate-y-13 "
         />

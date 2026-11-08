@@ -499,7 +499,7 @@ export default function DoodleBackgroundDemo() {
 
       <div className="stage__book">
         <div className="stage__book-shadow" />
-        <Book />
+        <Book key={currentPhotoSources.slice(0, 10).join(",")} />
       </div>
     </div>
   );
