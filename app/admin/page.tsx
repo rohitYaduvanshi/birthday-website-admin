@@ -107,28 +107,6 @@ export default function AdminPage() {
     setIsVerifyingPin(true);
     setPinError(false);
 
-    // Instant unlock for default master PIN 1111
-    if (pin === "1111") {
-      setIsAuthenticated(true);
-      setPinError(false);
-      sessionStorage.setItem("admin_authenticated", "true");
-      setIsVerifyingPin(false);
-      fetch("/api/admin/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
-      })
-        .then((r) => r.json())
-        .then((d) => {
-          if (d.config) {
-            setFormData(d.config);
-            saveClientConfig(d.config);
-          }
-        })
-        .catch(() => {});
-      return;
-    }
-
     try {
       const res = await fetch("/api/admin/verify", {
         method: "POST",
@@ -145,18 +123,12 @@ export default function AdminPage() {
           saveClientConfig(data.config);
         }
       } else {
-        const stored = (config.admin?.pin || "1111").trim();
-        if (pin === stored) {
-          setIsAuthenticated(true);
-          setPinError(false);
-          sessionStorage.setItem("admin_authenticated", "true");
-        } else {
-          setPinError(true);
-        }
+        setPinError(true);
       }
     } catch {
+      // Offline fallback: check against cached config only
       const stored = (config.admin?.pin || "1111").trim();
-      if (pin === stored || pin === "1111") {
+      if (pin && pin === stored) {
         setIsAuthenticated(true);
         setPinError(false);
         sessionStorage.setItem("admin_authenticated", "true");
@@ -1279,8 +1251,19 @@ export default function AdminPage() {
                 <button
                   type="button"
                   onClick={async () => {
-                    await handleSave();
-                    alert("Admin PIN updated successfully!");
+                    const newPin = (formData.admin?.pin || "").trim();
+                    if (!newPin || newPin.length < 3) {
+                      alert("Please enter a PIN with at least 3 characters/digits.");
+                      return;
+                    }
+                    const updated = {
+                      ...formData,
+                      admin: { pin: newPin },
+                    };
+                    setFormData(updated);
+                    saveClientConfig(updated);
+                    await updateConfig(updated);
+                    alert(`PIN successfully changed to: ${newPin}\n\nAb se sirf is naye PIN se login hoga. Purana default PIN (1111) band ho gaya!`);
                   }}
                   className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs transition cursor-pointer flex items-center justify-center gap-2"
                 >

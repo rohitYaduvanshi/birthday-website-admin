@@ -42,8 +42,9 @@ export async function POST(req: Request) {
 
     const providedPin = (pin || "").trim();
 
-    // Accept if matches stored PIN OR default master 1111
-    if (providedPin && (providedPin === storedPin || providedPin === "1111")) {
+    // STRICT: ONLY the current set PIN is valid!
+    // (If default, it is 1111. Once changed to e.g. 5555, ONLY 5555 works, 1111 is rejected!)
+    if (providedPin && providedPin === storedPin) {
       return NextResponse.json({
         success: true,
         config: {
@@ -59,11 +60,6 @@ export async function POST(req: Request) {
     );
   } catch (error) {
     console.error("Admin verify error:", error);
-    // If error, allow 1111 fallback
-    const { pin } = await req.json().catch(() => ({ pin: "" }));
-    if (pin === "1111") {
-      return NextResponse.json({ success: true, config: defaultSiteConfig });
-    }
     return NextResponse.json(
       { success: false, error: "Server error during verification" },
       { status: 500 }
